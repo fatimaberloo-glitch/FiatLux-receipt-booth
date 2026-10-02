@@ -1,0 +1,8 @@
+{
+  "name":"FiatLuxBooth Receipt Booth",
+  "short_name":"Receipt Booth",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#f7f2ea",
+  "theme_color":"#f7f2ea"
+}
