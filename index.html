@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f7f2ea">
+<title>FiatLuxBooth Receipt Booth</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{--cream:#f7f2ea;--paper:#fffdf8;--brown:#5c4637;--ink:#171411;--muted:#8b7b6e;--line:#d8cec2}
+*{box-sizing:border-box} body{margin:0;font-family:Georgia,"Times New Roman",serif;background:var(--cream);color:var(--ink);min-height:100vh}
+button,input,textarea{font:inherit} button{cursor:pointer}
+.app{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+.card{width:min(760px,100%);text-align:center}
+.brand{font-family:"Snell Roundhand","Brush Script MT",cursive;font-size:clamp(52px,10vw,92px);font-weight:400;line-height:1;color:var(--brown);margin:0}
+.kicker{letter-spacing:.28em;text-transform:uppercase;font-size:12px;margin-top:12px}
+h2{font-size:34px;font-weight:400;margin:12px 0}.sub{color:var(--muted);line-height:1.5}
+.primary,.secondary,.ghost{border-radius:999px;padding:15px 28px;border:1px solid var(--brown);margin:7px;min-width:160px}
+.primary{background:var(--brown);color:white}.secondary{background:transparent;color:var(--brown)}.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.layout-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin:30px auto;max-width:560px}
+.layout{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:25px;font-size:22px}
+.hidden{display:none!important}
+.camera-wrap{position:relative;overflow:hidden;border-radius:24px;background:#111;aspect-ratio:3/4;max-height:65vh;margin:20px auto}
+video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:120px;color:white;text-shadow:0 3px 20px #000}
+.receipt{width:min(390px,92vw);margin:20px auto;background:var(--paper);padding:25px 22px;box-shadow:0 10px 35px #00000018;text-align:center}
+.receipt .rbrand{font-family:"Snell Roundhand","Brush Script MT",cursive;font-size:45px;color:var(--brown)}
+.receipt .event{font-size:20px;margin:4px}.receipt .date,.receipt .footer{font-size:12px;letter-spacing:.08em;color:#555}
+.photos{display:grid;gap:7px;margin:18px 0}.photos.one{grid-template-columns:1fr}.photos.two,.photos.four{grid-template-columns:1fr 1fr}.photos.three{grid-template-columns:1fr 1fr}.photos.three img:first-child{grid-column:1/-1}
+.photos img{width:100%;aspect-ratio:1/1;object-fit:cover;filter:grayscale(1)}
+.settings{position:fixed;right:14px;top:14px;border:0;background:transparent;font-size:22px;color:var(--muted)}
+.panel{max-width:520px;margin:auto;text-align:left}.panel label{display:block;margin:15px 0 5px;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+.panel input,.panel textarea{width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;background:white}
+.note{font-size:12px;color:var(--muted);margin-top:18px}
+.upload-preview{max-width:180px;max-height:100px;object-fit:contain;display:block;margin:10px auto}
+.start-logo{max-width:240px;max-height:130px;object-fit:contain;margin:0 auto 18px}
+.receipt-logo{max-width:150px;max-height:80px;object-fit:contain;margin:10px auto}
+.checkrow{display:flex;align-items:center;gap:10px;margin:12px 0}.checkrow input{width:auto}
+.panel select{width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;background:white}
+@media print{body{background:white}.app>*:not(.card){display:none}.settings,.controls,.preview-title{display:none!important}.app{padding:0}.receipt{box-shadow:none;margin:0 auto;width:72mm;padding:5mm}.card{width:auto}}
+</style>
+</head>
+<body>
+<button class="settings" id="settingsBtn" aria-label="Settings">⚙︎</button>
+<main class="app">
+<section class="card" id="home">
+  <img id="startLogo" class="start-logo hidden" alt="Event logo">
+  <p class="brand" id="startBrand">FiatLuxBooth</p><p class="kicker">Receipt Photo Experience</p>
+  <h2 id="startHeadline">Memories, printed differently.</h2>
+  <p class="sub" id="startMessage">Tap below to begin your photo experience.</p>
+  <button class="primary" id="startButton" onclick="show('layouts')">Tap to Start</button>
+</section>
+
+<section class="card hidden" id="layouts">
+  <p class="kicker">Choose your layout</p><h2>How many photos?</h2>
+  <div class="layout-grid">
+    <button class="layout" onclick="begin(1)">1 Photo</button>
+    <button class="layout" onclick="begin(2)">2 Photos</button>
+    <button class="layout" onclick="begin(3)">3 Photos</button>
+    <button class="layout" onclick="begin(4)">4 Photos<br><small>2 × 2</small></button>
+  </div>
+  <button class="ghost" onclick="show('home')">Back</button>
+</section>
+
+<section class="card hidden" id="camera">
+  <p class="kicker" id="progress">Photo 1</p><h2>Get ready</h2>
+  <div class="camera-wrap"><video id="video" autoplay playsinline muted></video><div class="count hidden" id="count"></div></div>
+  <button class="primary" id="snap">Take Photo</button>
+  <button class="ghost" onclick="cancelCamera()">Cancel</button>
+  <canvas id="canvas" class="hidden"></canvas>
+</section>
+
+<section class="card hidden" id="preview">
+  <div class="preview-title"><p class="kicker">Your receipt</p><h2>Love it?</h2></div>
+  <div class="receipt" id="receipt">
+    <img id="receiptLogoTop" class="receipt-logo hidden" alt="Receipt logo"><div class="rbrand">FiatLuxBooth</div>
+    <div class="event" id="receiptEvent"></div><div class="date" id="receiptDate"></div>
+    <img id="receiptLogoAbove" class="receipt-logo hidden" alt="Receipt logo"><div class="photos" id="photoGrid"></div><img id="receiptLogoBelow" class="receipt-logo hidden" alt="Receipt logo">
+    <div id="receiptMessage"></div><p>────────────</p><div class="footer" id="receiptFooter"></div>
+  </div>
+  <div class="controls">
+    <button class="secondary" onclick="retake()">Retake</button>
+    <button class="primary" onclick="window.print()">Print</button>
+    <button class="ghost" onclick="resetBooth()">Finished</button>
+  </div>
+  <p class="note">Printing is in demo mode until your thermal printer connection is configured.</p>
+</section>
+
+<section class="card hidden" id="settings">
+  <p class="kicker">Host Settings</p><h2>Customize this event</h2>
+  <div class="panel">
+    <h3>Start Screen</h3>
+    <label>Start headline</label><input id="setStartHeadline" placeholder="Memories, printed differently.">
+    <label>Welcome message</label><input id="setStartMessage" placeholder="Tap below to begin your photo experience.">
+    <label>Start button wording</label><input id="setStartButton" placeholder="Tap to Start">
+    <label>Start screen logo — PNG, JPG or JPEG</label><input id="setStartLogoFile" type="file" accept="image/png,image/jpeg">
+    <img id="startLogoPreview" class="upload-preview hidden" alt="Start logo preview">
+    <div class="checkrow"><input id="showStartLogo" type="checkbox"><label for="showStartLogo" style="margin:0">Show uploaded logo on start screen</label></div>
+    <button class="ghost" type="button" id="removeStartLogo">Remove Start Logo</button>
+    <hr style="border:0;border-top:1px solid var(--line);margin:25px 0">
+    <h3>Receipt Template</h3>
+    <label>Event name</label><input id="setEvent" placeholder="THE MARTINEZ WEDDING">
+    <label>Date / detail line</label><input id="setDate" placeholder="OCTOBER 10, 2026">
+    <label>Message</label><textarea id="setMessage" rows="3" placeholder="A little memory from tonight."></textarea>
+    <label>Footer</label><input id="setFooter" placeholder="@FIATLUXBOOTH • DMV">
+    <label>Receipt logo / monogram — PNG, JPG or JPEG</label><input id="setReceiptLogoFile" type="file" accept="image/png,image/jpeg">
+    <img id="receiptLogoPreview" class="upload-preview hidden" alt="Receipt logo preview">
+    <div class="checkrow"><input id="showReceiptLogo" type="checkbox"><label for="showReceiptLogo" style="margin:0">Show logo on receipt</label></div>
+    <label>Logo position</label>
+    <select id="receiptLogoPosition"><option value="top">Top</option><option value="above">Above Photos</option><option value="below">Below Photos</option></select>
+    <button class="ghost" type="button" id="removeReceiptLogo">Remove Receipt Logo</button>
+    <br><button class="primary" id="saveSettings">Save Event</button><button class="ghost" onclick="show('home')">Cancel</button>
+  </div>
+</section>
+</main>
+<script>
+let target=1, shots=[], stream=null;
+const $=id=>document.getElementById(id);
+const defaults={event:"YOUR EVENT",date:"OCTOBER 2026",message:"A little memory from today.",footer:"@FIATLUXBOOTH",startHeadline:"Memories, printed differently.",startMessage:"Tap below to begin your photo experience.",startButton:"Tap to Start",startLogo:"",showStartLogo:false,receiptLogo:"",showReceiptLogo:false,receiptLogoPosition:"top"};
+function getSettings(){try{return {...defaults,...JSON.parse(localStorage.getItem("flSettings")||"{}")}}catch(e){return defaults}}
+function show(id){document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));$(id).classList.remove("hidden")}
+function fileToDataURL(file,cb){if(!file)return;let r=new FileReader();r.onload=()=>cb(r.result);r.readAsDataURL(file)}
+function previewImage(id,data){let el=$(id);if(data){el.src=data;el.classList.remove("hidden")}else{el.removeAttribute("src");el.classList.add("hidden")}}
+function applyHome(){let s=getSettings();$("startHeadline").textContent=s.startHeadline;$("startMessage").textContent=s.startMessage;$("startButton").textContent=s.startButton;previewImage("startLogo",s.showStartLogo?s.startLogo:"");$("startBrand").classList.toggle("hidden",!!(s.showStartLogo&&s.startLogo))}
+$("settingsBtn").onclick=()=>{let s=getSettings();$("setEvent").value=s.event;$("setDate").value=s.date;$("setMessage").value=s.message;$("setFooter").value=s.footer;$("setStartHeadline").value=s.startHeadline;$("setStartMessage").value=s.startMessage;$("setStartButton").value=s.startButton;$("showStartLogo").checked=s.showStartLogo;$("showReceiptLogo").checked=s.showReceiptLogo;$("receiptLogoPosition").value=s.receiptLogoPosition;previewImage("startLogoPreview",s.startLogo);previewImage("receiptLogoPreview",s.receiptLogo);show("settings")}
+$("setStartLogoFile").onchange=e=>fileToDataURL(e.target.files[0],d=>previewImage("startLogoPreview",d));
+$("setReceiptLogoFile").onchange=e=>fileToDataURL(e.target.files[0],d=>previewImage("receiptLogoPreview",d));
+$("removeStartLogo").onclick=()=>previewImage("startLogoPreview","");
+$("removeReceiptLogo").onclick=()=>previewImage("receiptLogoPreview","");
+$("saveSettings").onclick=()=>{let old=getSettings();let data={event:$("setEvent").value,date:$("setDate").value,message:$("setMessage").value,footer:$("setFooter").value,startHeadline:$("setStartHeadline").value,startMessage:$("setStartMessage").value,startButton:$("setStartButton").value,startLogo:$("startLogoPreview").getAttribute("src")||"",showStartLogo:$("showStartLogo").checked,receiptLogo:$("receiptLogoPreview").getAttribute("src")||"",showReceiptLogo:$("showReceiptLogo").checked,receiptLogoPosition:$("receiptLogoPosition").value};try{localStorage.setItem("flSettings",JSON.stringify(data))}catch(e){alert("That image is too large. Please use a smaller PNG/JPG.");return}applyHome();show("home")}
+async function begin(n){target=n;shots=[];show("camera");await startCamera();updateProgress()}
+async function startCamera(){
+ try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:1200},height:{ideal:1600}},audio:false});$("video").srcObject=stream}
+ catch(e){alert("Camera access is required. On iPad, allow Camera permission for this website in Safari settings.");show("layouts")}
+}
+function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+function updateProgress(){$("progress").textContent=`Photo ${shots.length+1} of ${target}`}
+$("snap").onclick=async()=>{ $("snap").disabled=true; for(let n=3;n>=1;n--){$("count").textContent=n;$("count").classList.remove("hidden");await new Promise(r=>setTimeout(r,700))}$("count").classList.add("hidden");capture();$("snap").disabled=false}
+function capture(){let v=$("video"),c=$("canvas"),ctx=c.getContext("2d");c.width=v.videoWidth;c.height=v.videoHeight;ctx.translate(c.width,0);ctx.scale(-1,1);ctx.drawImage(v,0,0);shots.push(c.toDataURL("image/jpeg",.9));if(shots.length>=target){stopCamera();renderReceipt();show("preview")}else updateProgress()}
+function renderReceipt(){let s=getSettings();$("receiptEvent").textContent=s.event;$("receiptDate").textContent=s.date;$("receiptMessage").textContent=s.message;$("receiptFooter").textContent=s.footer;["receiptLogoTop","receiptLogoAbove","receiptLogoBelow"].forEach(id=>previewImage(id,""));if(s.showReceiptLogo&&s.receiptLogo){let id=s.receiptLogoPosition==="above"?"receiptLogoAbove":s.receiptLogoPosition==="below"?"receiptLogoBelow":"receiptLogoTop";previewImage(id,s.receiptLogo)}let g=$("photoGrid");g.innerHTML="";g.className="photos "+(["","one","two","three","four"][target]);shots.forEach(src=>{let im=document.createElement("img");im.src=src;g.appendChild(im)})}
+function retake(){shots=[];show("camera");startCamera();updateProgress()}
+function cancelCamera(){stopCamera();show("layouts")}
+function resetBooth(){shots=[];stopCamera();show("home")}
+applyHome();
+</script>
+</body></html>
